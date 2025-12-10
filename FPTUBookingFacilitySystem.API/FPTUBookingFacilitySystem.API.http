@@ -1,0 +1,6 @@
+@FPTUBookingFacilitySystem.API_HostAddress = http://localhost:5234
+
+GET {{FPTUBookingFacilitySystem.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
