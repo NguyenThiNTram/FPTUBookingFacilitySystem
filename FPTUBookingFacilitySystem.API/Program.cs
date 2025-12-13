@@ -15,9 +15,11 @@ builder.Services.AddDbContext<FPTUBookingFacilityDbContext>(options =>
 
 // Register Repositories
 builder.Services.AddScoped<IAccountRepository, AccountRepository>();
+builder.Services.AddScoped<ITimeSlotRepository, TimeSlotRepository>();
 
 // Register Services
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<ITimeSlotService, TimeSlotService>();
 
 // Add controllers (for API endpoints)
 builder.Services.AddControllers();
