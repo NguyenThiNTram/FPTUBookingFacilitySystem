@@ -12,5 +12,6 @@ namespace FPTUBookingFacilitySystem.Services.Interfaces
         Task<BookingResponse?> ApproveBookingAsync(int bookingId, int staffAccountId);
         Task<BookingResponse?> RejectBookingAsync(int bookingId, int staffAccountId, string? comment = null);
         Task<BookingResponse?> CancelBookingAsync(int bookingId, int accountId);
+        Task<BookingReportResponse> GetBookingReportAsync();
     }
 }

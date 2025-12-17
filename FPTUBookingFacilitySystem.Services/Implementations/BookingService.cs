@@ -358,5 +358,24 @@ namespace FPTUBookingFacilitySystem.Services.Implementations
                 Comment = history.Comment
             };
         }
+
+        public async Task<BookingReportResponse> GetBookingReportAsync()
+        {
+            var totalBookings = await _bookingRepository.GetTotalBookingsCountAsync();
+            var bookingsByStatus = await _bookingRepository.GetBookingsCountByStatusAsync();
+            var roomBookingCounts = await _bookingRepository.GetRoomBookingCountsAsync(10);
+
+            return new BookingReportResponse
+            {
+                TotalBookings = totalBookings,
+                BookingsByStatus = bookingsByStatus,
+                MostBookedRooms = roomBookingCounts.Select(r => new RoomBookingRanking
+                {
+                    RoomId = r.RoomId,
+                    RoomName = r.RoomName,
+                    BookingCount = r.BookingCount
+                }).ToList()
+            };
+        }
     }
 }

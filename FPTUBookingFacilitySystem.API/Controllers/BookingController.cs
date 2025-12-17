@@ -66,6 +66,7 @@ namespace FPTUBookingFacilitySystem.API.Controllers
             }
         }
 
+
         [HttpGet]
         // [RoleAuthorize(UserRole.Staff)] // Only staff can view all bookings
         public async Task<IActionResult> GetAllBookings()
@@ -190,6 +191,14 @@ namespace FPTUBookingFacilitySystem.API.Controllers
             {
                 return Unauthorized(new { message = ex.Message });
             }
+        }
+
+        [HttpGet("report")]
+        [RoleAuthorize(UserRole.Admin)] // Only admin can view reports
+        public async Task<IActionResult> GetBookingReport()
+        {
+            var report = await _bookingService.GetBookingReportAsync();
+            return Ok(report);
         }
     }
 }

@@ -93,6 +93,35 @@ namespace FPTUBookingFacilitySystem.Repositories.Implementations
                 .ToListAsync();
         }
 
+        public async Task<int> GetTotalBookingsCountAsync()
+        {
+            return await _context.Bookings.CountAsync();
+        }
+
+        public async Task<Dictionary<string, int>> GetBookingsCountByStatusAsync()
+        {
+            return await _context.Bookings
+                .GroupBy(b => b.BookingStatus)
+                .Select(g => new { Status = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.Status, x => x.Count);
+        }
+
+        public async Task<IEnumerable<RoomBookingCount>> GetRoomBookingCountsAsync(int topCount = 10)
+        {
+            return await _context.Bookings
+                .Include(b => b.Room)
+                .GroupBy(b => new { b.RoomId, b.Room!.RoomName })
+                .Select(g => new RoomBookingCount
+                {
+                    RoomId = g.Key.RoomId,
+                    RoomName = g.Key.RoomName ?? string.Empty,
+                    BookingCount = g.Count()
+                })
+                .OrderByDescending(r => r.BookingCount)
+                .Take(topCount)
+                .ToListAsync();
+        }
+
         public async Task<ConflictLog> CreateConflictLogAsync(ConflictLog conflictLog)
         {
             conflictLog.CreatedAt = DateTime.UtcNow;
