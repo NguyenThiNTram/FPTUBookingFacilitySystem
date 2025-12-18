@@ -93,6 +93,17 @@ namespace FPTUBookingFacilitySystem.Repositories.Implementations
                 .ToListAsync();
         }
 
+        public async Task<IEnumerable<BookingHistory>> GetBookingHistoryByUserIdAsync(int userId)
+        {
+            return await _context.BookingHistories
+                .Include(h => h.Booking)
+                    .ThenInclude(b => b.Room)
+                .Include(h => h.ChangedByNavigation)
+                .Where(h => h.Booking.UserId == userId)
+                .OrderByDescending(h => h.ChangedAt)
+                .ToListAsync();
+        }
+
         public async Task<int> GetTotalBookingsCountAsync()
         {
             return await _context.Bookings.CountAsync();
@@ -132,9 +143,6 @@ namespace FPTUBookingFacilitySystem.Repositories.Implementations
 
         public async Task<ConflictLog> CreateConflictLogWithoutBookingAsync(int roomId, int timeSlotId, string conflictType, string message)
         {
-            // For conflicts that occur before booking creation, we need to insert with NULL BookingId
-            // Since OnDelete(ClientSetNull) suggests the column might allow NULL, we'll try using NULL
-            // Use raw SQL to insert with NULL BookingId
             var sql = @"
                 INSERT INTO Conflict_log (room_id, time_slot_id, conflict_type, message, booking_id, created_at)
                 VALUES ({0}, {1}, {2}, {3}, NULL, GETDATE());";
@@ -149,8 +157,6 @@ namespace FPTUBookingFacilitySystem.Repositories.Implementations
                 // This is expected behavior - we log conflicts when possible
             }
 
-            // Return a ConflictLog object (BookingId = 0 indicates pre-booking conflict)
-            // Note: The actual database row may have NULL if the column allows it
             return new ConflictLog
             {
                 ConflictId = 0, // We don't retrieve it for pre-booking conflicts

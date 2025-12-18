@@ -88,7 +88,7 @@ namespace FPTUBookingFacilitySystem.API.Controllers
             return Ok(booking);
         }
 
-        [Authorize(Roles = "Lecturer,Student,Staff")]
+        [Authorize(Roles = "Staff,Admin")]
         [HttpGet("{id}/history")]
         public async Task<IActionResult> GetBookingHistory(int id)
         {
@@ -109,6 +109,15 @@ namespace FPTUBookingFacilitySystem.API.Controllers
             {
                 return NotFound(new { message = ex.Message });
             }
+        }
+
+        [Authorize(Roles = "Lecturer,Student")]
+        [HttpGet("my/history")]
+        public async Task<IActionResult> GetMyBookingHistory()
+        {
+            var accountId = GetCurrentAccountId();
+            var history = await _bookingService.GetBookingHistoryByAccountAsync(accountId);
+            return Ok(history);
         }
 
         [HttpPut("{id}/approve")]

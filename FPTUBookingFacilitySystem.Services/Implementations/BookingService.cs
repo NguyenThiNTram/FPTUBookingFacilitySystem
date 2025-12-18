@@ -29,116 +29,117 @@ namespace FPTUBookingFacilitySystem.Services.Implementations
             _accountRepository = accountRepository;
         }
 
-        public async Task<BookingResponse?> CreateBookingAsync(CreateBookingRequest request, int accountId)
+        public async Task<BookingResponse?> CreateBookingAsync( CreateBookingRequest request, int accountId)
         {
-            // Lấy account và role
-            var account = await _accountRepository.GetAccountByIdAsync(accountId);
-            if (account == null)
-                throw new ArgumentException("Account not found.");
+            // ===== 1. Validate account & role =====
+            var account = await _accountRepository.GetAccountByIdAsync(accountId)
+                ?? throw new ArgumentException("Account not found.");
 
-            // Role check: chỉ Lecturer hoặc Student mới được tạo booking
-            if ((UserRole)account.RoleId != UserRole.Lecturer && (UserRole)account.RoleId != UserRole.Student)
-                throw new UnauthorizedAccessException("Only lecturers or students can create booking.");
+            if ((UserRole)account.RoleId != UserRole.Student &&
+                (UserRole)account.RoleId != UserRole.Lecturer)
+                throw new UnauthorizedAccessException(
+                    "Only lecturers or students can create booking.");
 
-            // Get UserProfile from AccountId
-            var user = await _userProfileRepository.GetUserProfileByAccountIdAsync(accountId);
-            if (user == null)
-                throw new ArgumentException("User profile not found. Please complete your profile.");
-            
-            var userId = user.UserId;
+            var user = await _userProfileRepository
+                .GetUserProfileByAccountIdAsync(accountId)
+                ?? throw new ArgumentException("User profile not found.");
 
-            // Validate room exists
-            var room = await _roomRepository.GetRoomByIdAsync(request.RoomId);
-            if (room == null)
-            {
-                throw new ArgumentException("Room not found.");
-            }
+            // ===== 2. Validate room & timeslot =====
+            var room = await _roomRepository.GetRoomByIdAsync(request.RoomId)
+                ?? throw new ArgumentException("Room not found.");
 
-            // Validate room is available
-            if (room.RoomStatus.ToLower() != "available")
-            {
-                // // Log conflict (before booking creation, so no BookingId)
-                // await _bookingRepository.CreateConflictLogWithoutBookingAsync(
-                //     request.RoomId,
-                //     request.TimeSlotId,
-                //     "Room Unavailable",
-                //     $"Room {room.RoomName} is not available. Current status: {room.RoomStatus}");
-
-                // throw new InvalidOperationException($"Room {room.RoomName} is not available for booking. Status: {room.RoomStatus}");
-                await _bookingRepository.CreateConflictLogAsync(new ConflictLog
-                {
-                    RoomId = room.RoomId,
-                    TimeSlotId = request.TimeSlotId,
-                    ConflictType = "Room Unavailable",
-                    Message = $"Room {room.RoomName} is {room.RoomStatus}",
-                    CreatedAt = DateTime.UtcNow
-                });
-                throw new InvalidOperationException($"Room {room.RoomName} is not available.");
-            }
-
-            // Validate time slot exists
-            var timeSlot = await _timeSlotRepository.GetTimeSlotByIdAsync(request.TimeSlotId);
-            if (timeSlot == null)
-                throw new ArgumentException("Time slot not found.");
+            var timeSlot = await _timeSlotRepository
+                .GetTimeSlotByIdAsync(request.TimeSlotId)
+                ?? throw new ArgumentException("Time slot not found.");
 
             if (!timeSlot.IsActive)
                 throw new InvalidOperationException("Time slot is not active.");
 
-            // Convert DateTime to DateOnly
             var bookingDate = DateOnly.FromDateTime(request.BookingDate);
 
-            // Check if room is already booked for this date and time slot
-            var isAvailable = await _bookingRepository.IsRoomAvailableForDateAndTimeSlotAsync(
-                request.RoomId, bookingDate, request.TimeSlotId);
-
-            if (!isAvailable)
-            {
-                // // Log conflict (before booking creation, so no BookingId)
-                // await _bookingRepository.CreateConflictLogWithoutBookingAsync(
-                //     request.RoomId,
-                //     request.TimeSlotId,
-                //     "Double Booking",
-                //     $"Room {room.RoomName} is already booked for {bookingDate} at time slot {timeSlot.Name}");
-
-                // throw new InvalidOperationException($"Room {room.RoomName} is already booked for {bookingDate} at time slot {timeSlot.Name}");
-                await _bookingRepository.CreateConflictLogAsync(new ConflictLog
-                {
-                    RoomId = room.RoomId,
-                    TimeSlotId = timeSlot.Id,
-                    ConflictType = "Double Booking",
-                    Message = $"Room {room.RoomName} already booked on {bookingDate} for {timeSlot.Name}",
-                    CreatedAt = DateTime.UtcNow
-                });
-                throw new InvalidOperationException($"Room {room.RoomName} already booked for this slot.");
-            }
-
-            // Create booking with "pending" status
+            // ===== 3. Tạo Booking trước (status = pending) =====
             var booking = new Booking
             {
-                UserId = userId,
-                RoomId = request.RoomId,
-                TimeSlotId = request.TimeSlotId,
+                UserId = user.UserId,
+                RoomId = room.RoomId,
+                TimeSlotId = timeSlot.Id,
                 BookingDate = bookingDate,
                 BookingStatus = "pending",
                 Reason = request.Reason,
                 BookingTime = DateTime.UtcNow
             };
 
-            var createdBooking = await _bookingRepository.CreateBookingAsync(booking);
+            booking = await _bookingRepository.CreateBookingAsync(booking);
 
-            // Create initial booking history (from null to "pending")
-            var bookingHistory = new BookingHistory
+            // ===== 4. Check room unavailable =====
+            if (!room.RoomStatus.Equals("available", StringComparison.OrdinalIgnoreCase))
             {
-                BookingId = createdBooking.BookingId,
-                ChangedBy = userId,
+                await HandleConflictAsync(
+                    booking,
+                    "room_unavailable",
+                    $"Room {room.RoomName} is {room.RoomStatus}");
+
+                throw new InvalidOperationException(
+                    $"Room {room.RoomName} is not available.");
+            }
+
+            // ===== 5. Check double booking =====
+            var isAvailable =
+                await _bookingRepository.IsRoomAvailableForDateAndTimeSlotAsync(
+                    room.RoomId, bookingDate, timeSlot.Id);
+
+            if (!isAvailable)
+            {
+                await HandleConflictAsync(
+                    booking,
+                    "double_booking",
+                    $"Room {room.RoomName} already booked on {bookingDate} ({timeSlot.Name})");
+
+                throw new InvalidOperationException(
+                    $"Room {room.RoomName} already booked for this time slot.");
+            }
+
+            // ===== 6. Create initial booking history =====
+            await _bookingRepository.CreateBookingHistoryAsync(new BookingHistory
+            {
+                BookingId = booking.BookingId,
+                ChangedBy = user.UserId,
                 OldStatus = null,
                 NewStatus = "pending",
                 ChangedAt = DateTime.UtcNow,
                 Comment = "Booking created"
-            };
-            await _bookingRepository.CreateBookingHistoryAsync(bookingHistory);
+            });
 
-            return MapToResponse(createdBooking);
+            return MapToResponse(booking);
+        }
+
+        private async Task HandleConflictAsync(Booking booking, string conflictType, string message)
+        {
+            // Update booking status
+            booking.BookingStatus = "rejected";
+            await _bookingRepository.UpdateBookingStatusAsync(booking.BookingId, "rejected");
+
+            // Log conflict
+            await _bookingRepository.CreateConflictLogAsync(new ConflictLog
+            {
+                BookingId = booking.BookingId,
+                RoomId = booking.RoomId,
+                TimeSlotId = booking.TimeSlotId,
+                ConflictType = conflictType,
+                Message = message,
+                CreatedAt = DateTime.UtcNow
+            });
+
+            // Booking history
+            await _bookingRepository.CreateBookingHistoryAsync(new BookingHistory
+            {
+                BookingId = booking.BookingId,
+                ChangedBy = booking.UserId,
+                OldStatus = "pending",
+                NewStatus = "rejected",
+                ChangedAt = DateTime.UtcNow,
+                Comment = conflictType
+            });
         }
 
         public async Task<BookingResponse?> GetBookingByIdAsync(int bookingId)
@@ -167,23 +168,38 @@ namespace FPTUBookingFacilitySystem.Services.Implementations
             var account = await _accountRepository.GetAccountByIdAsync(accountId);
             if (account == null)
                 throw new UnauthorizedAccessException();
+                
 
-            var user = await _userProfileRepository.GetUserProfileByAccountIdAsync(accountId);
+            // var user = await _userProfileRepository.GetUserProfileByAccountIdAsync(accountId);
 
-            var role = (UserRole)account.RoleId;
+            // var role = (UserRole)account.RoleId;
 
-            // User chỉ xem booking của chính mình
-            if (role == UserRole.Student || role == UserRole.Lecturer)
-            {
-                if (user == null || booking.UserId != user.UserId)
-                    throw new UnauthorizedAccessException("You are not allowed to view this booking history.");
-            }
+            // // User chỉ xem booking của chính mình
+            // if (role == UserRole.Student || role == UserRole.Lecturer)
+            // {
+            //     if (user == null || booking.UserId != user.UserId)
+            //         throw new UnauthorizedAccessException("You are not allowed to view this booking history.");
+            // }
 
-            // Staff / Admin → xem tất cả
             var history = await _bookingRepository.GetBookingHistoryByBookingIdAsync(bookingId);
             return history.Select(MapToHistoryResponse);
         }
 
+        public async Task<IEnumerable<BookingHistoryResponse>> GetBookingHistoryByAccountAsync(int accountId)
+        {
+            var account = await _accountRepository.GetAccountByIdAsync(accountId);
+            if (account == null)
+                throw new UnauthorizedAccessException();
+
+            var user = await _userProfileRepository.GetUserProfileByAccountIdAsync(accountId);
+            if (user == null)
+                throw new ArgumentException("User profile not found.");
+
+            var histories = await _bookingRepository
+                .GetBookingHistoryByUserIdAsync(user.UserId);
+
+            return histories.Select(MapToHistoryResponse);
+        }
 
         public async Task<BookingResponse?> ApproveBookingAsync(int bookingId, int staffAccountId)
         {
