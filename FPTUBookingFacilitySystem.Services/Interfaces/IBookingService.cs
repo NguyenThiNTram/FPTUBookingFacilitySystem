@@ -9,6 +9,7 @@ namespace FPTUBookingFacilitySystem.Services.Interfaces
         Task<BookingResponse?> GetBookingByIdAsync(int bookingId);
         Task<IEnumerable<BookingResponse>> GetAllBookingsAsync();
         Task<IEnumerable<BookingHistoryResponse>> GetBookingHistoryByBookingIdAsync(int bookingId, int accountId);
+        Task<IEnumerable<BookingHistoryResponse>> GetBookingHistoryByAccountAsync(int accountId);
         Task<BookingResponse?> ApproveBookingAsync(int bookingId, int staffAccountId);
         Task<BookingResponse?> RejectBookingAsync(int bookingId, int staffAccountId, string? comment = null);
         Task<BookingResponse?> CancelBookingAsync(int bookingId, int accountId);

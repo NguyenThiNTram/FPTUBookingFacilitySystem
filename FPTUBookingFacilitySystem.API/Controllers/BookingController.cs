@@ -9,7 +9,7 @@ namespace FPTUBookingFacilitySystem.API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize] // Only logged-in users can access
+    [Authorize]
     public class BookingController : ControllerBase
     {
         private readonly IBookingService _bookingService;
@@ -34,6 +34,7 @@ namespace FPTUBookingFacilitySystem.API.Controllers
         }
 
         [HttpPost]
+        [Authorize(Roles = "Lecturer,Student")]
         public async Task<IActionResult> CreateBooking([FromBody] CreateBookingRequest request)
         {
             if (request == null)
@@ -68,7 +69,7 @@ namespace FPTUBookingFacilitySystem.API.Controllers
 
 
         [HttpGet]
-        // [RoleAuthorize(UserRole.Staff)] // Only staff can view all bookings
+        [Authorize(Roles = "Lecturer,Student,Staff")]
         public async Task<IActionResult> GetAllBookings()
         {
             var bookings = await _bookingService.GetAllBookingsAsync();
@@ -76,23 +77,24 @@ namespace FPTUBookingFacilitySystem.API.Controllers
         }
 
         [HttpGet("{id}")]
+        [Authorize(Roles = "Lecturer,Student,Staff")]
         public async Task<IActionResult> GetBookingById(int id)
         {
             var booking = await _bookingService.GetBookingByIdAsync(id);
             if (booking == null)
             {
-                return NotFound(new { message = $"Booking with ID {id} not found." });
+return NotFound(new { message = $"Booking with ID {id} not found." });
             }
             return Ok(booking);
         }
 
-        // [Authorize]
+        [Authorize(Roles = "Staff,Admin")]
         [HttpGet("{id}/history")]
         public async Task<IActionResult> GetBookingHistory(int id)
         {
             try
             {
-                var accountId = int.Parse(User.FindFirst("accountId")!.Value);
+                 var accountId = GetCurrentAccountId();
 
                 var history = await _bookingService
                     .GetBookingHistoryByBookingIdAsync(id, accountId);
@@ -109,8 +111,17 @@ namespace FPTUBookingFacilitySystem.API.Controllers
             }
         }
 
+        [Authorize(Roles = "Lecturer,Student")]
+        [HttpGet("my/history")]
+        public async Task<IActionResult> GetMyBookingHistory()
+        {
+            var accountId = GetCurrentAccountId();
+            var history = await _bookingService.GetBookingHistoryByAccountAsync(accountId);
+            return Ok(history);
+        }
+
         [HttpPut("{id}/approve")]
-        // [RoleAuthorize(UserRole.Staff)] // Only staff can approve
+        [Authorize(Roles = "Staff")]
         public async Task<IActionResult> ApproveBooking(int id)
         {
             try
@@ -138,7 +149,7 @@ namespace FPTUBookingFacilitySystem.API.Controllers
         }
 
         [HttpPut("{id}/reject")]
-        // [RoleAuthorize(UserRole.Staff)] // Only staff can reject
+        [Authorize(Roles = "Staff")]
         public async Task<IActionResult> RejectBooking(int id, [FromBody] RejectBookingRequest? request = null)
         {
             try
@@ -158,7 +169,7 @@ namespace FPTUBookingFacilitySystem.API.Controllers
             }
             catch (InvalidOperationException ex)
             {
-                return BadRequest(new { message = ex.Message });
+return BadRequest(new { message = ex.Message });
             }
             catch (UnauthorizedAccessException ex)
             {
@@ -167,6 +178,7 @@ namespace FPTUBookingFacilitySystem.API.Controllers
         }
 
         [HttpPut("{id}/cancel")]
+        [Authorize(Roles = "Staff")]
         public async Task<IActionResult> CancelBooking(int id)
         {
             try
@@ -194,7 +206,7 @@ namespace FPTUBookingFacilitySystem.API.Controllers
         }
 
         [HttpGet("report")]
-        [RoleAuthorize(UserRole.Admin)] // Only admin can view reports
+        [Authorize(Roles = "Staff,Admin")]
         public async Task<IActionResult> GetBookingReport()
         {
             var report = await _bookingService.GetBookingReportAsync();

@@ -11,25 +11,44 @@ using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// =======================
+// DATABASE - MYSQL
+// =======================
 builder.Services.AddDbContext<FPTUBookingFacilityDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+{
+    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
-// Repositories
+    options.UseMySql(
+        connectionString,
+        ServerVersion.AutoDetect(connectionString)
+    );
+});
+
+// =======================
+// REPOSITORIES
+// =======================
 builder.Services.AddScoped<IAccountRepository, AccountRepository>();
 builder.Services.AddScoped<ITimeSlotRepository, TimeSlotRepository>();
 builder.Services.AddScoped<IRoomRepository, RoomRepository>();
 builder.Services.AddScoped<IUserProfileRepository, UserProfileRepository>();
 builder.Services.AddScoped<IBookingRepository, BookingRepository>();
 
-// Services
+// =======================
+// SERVICES
+// =======================
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ITimeSlotService, TimeSlotService>();
 builder.Services.AddScoped<IRoomService, RoomService>();
 builder.Services.AddScoped<IBookingService, BookingService>();
 
+// =======================
+// CONTROLLERS
+// =======================
 builder.Services.AddControllers();
 
-// Swagger
+// =======================
+// SWAGGER
+// =======================
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -46,7 +65,7 @@ builder.Services.AddSwaggerGen(options =>
         Scheme = "Bearer",
         BearerFormat = "JWT",
         In = ParameterLocation.Header,
-        Description = "Enter JWT token in format: Bearer {your token}"
+        Description = "Enter JWT token like: Bearer {token}"
     });
 
     options.AddSecurityRequirement(new OpenApiSecurityRequirement
@@ -65,7 +84,9 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
+// =======================
 // CORS
+// =======================
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
@@ -74,7 +95,9 @@ builder.Services.AddCors(options =>
               .AllowAnyMethod());
 });
 
-// JWT
+// =======================
+// JWT AUTH
+// =======================
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
 var key = Encoding.UTF8.GetBytes(jwtSettings["SecretKey"]!);
 
@@ -100,6 +123,9 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
+// =======================
+// MIDDLEWARE
+// =======================
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -113,6 +139,8 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
-app.MapGet("/", () => Results.Redirect("/swagger/index.html"));
+
+// redirect root → swagger
+app.MapGet("/", () => Results.Redirect("/swagger"));
 
 app.Run();
