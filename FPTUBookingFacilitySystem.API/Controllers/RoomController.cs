@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace FPTUBookingFacilitySystem.API.Controllers
 {
+    
     [ApiController]
     [Route("api/[controller]")]
     public class RoomController : ControllerBase
@@ -34,7 +35,7 @@ namespace FPTUBookingFacilitySystem.API.Controllers
             return Ok(room);
         }
 
-        // [Authorize(Roles = "Staff")]
+        [Authorize(Roles = "Staff")]
         [HttpPost]
         public async Task<IActionResult> CreateRoom([FromBody] CreateRoomRequest request)
         {
@@ -54,7 +55,7 @@ namespace FPTUBookingFacilitySystem.API.Controllers
             }
         }
 
-        // [Authorize(Roles = "Staff")]
+        [Authorize(Roles = "Staff")]
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateRoom(int id, [FromBody] UpdateRoomRequest request)
         {
@@ -78,7 +79,7 @@ namespace FPTUBookingFacilitySystem.API.Controllers
             }
         }
 
-        //[Authorize(Roles = "Staff")]
+        [Authorize(Roles = "Staff")]
         [HttpPut("{id}/status")]
         public async Task<IActionResult> UpdateRoomStatus(int id, [FromBody] UpdateRoomStatusRequest request)
         {
@@ -107,8 +108,8 @@ namespace FPTUBookingFacilitySystem.API.Controllers
             }
         }
 
-        // [Authorize(Roles = "Staff")]
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Staff")]
         public async Task<IActionResult> DeleteRoom(int id)
         {
             var result = await _roomService.DeleteRoomAsync(id);

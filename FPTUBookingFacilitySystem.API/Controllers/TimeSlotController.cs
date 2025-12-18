@@ -1,9 +1,11 @@
 using FPTUBookingFacilitySystem.Services.DTOs.Requests;
 using FPTUBookingFacilitySystem.Services.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace FPTUBookingFacilitySystem.API.Controllers
 {
+    [Authorize(Roles = "Staff")]
     [ApiController]
     [Route("api/[controller]")]
     public class TimeSlotController : ControllerBase

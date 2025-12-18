@@ -32,21 +32,14 @@ namespace FPTUBookingFacilitySystem.Services.Implementations
             var account = await _accountRepository.GetAccountByEmailAsync(request.Email);
             
             if (account == null)
-            {
-                return null; // Account not found
-            }
+                return null;
 
             // Check if account is active
             if (!account.IsActive)
-            {
-                return null; // Account is inactive
-            }
+                return null;
 
-            // Verify password (plain text comparison)
             if (account.Password != request.Password)
-            {
-                return null; // Invalid password
-            }
+                return null;
 
             // Map RoleId to UserRole enum
             UserRole role = (UserRole)account.RoleId;
@@ -64,14 +57,7 @@ namespace FPTUBookingFacilitySystem.Services.Implementations
         }
 
         public async Task<bool> LogoutAsync(string token)
-        {
-            // For JWT tokens, logout is typically handled client-side by removing the token
-            // However, if you want to implement token blacklisting, you would need to:
-            // 1. Store invalidated tokens in a cache/database
-            // 2. Check against this list during token validation
-            // For now, we'll return true as logout is successful from the server's perspective
-            // The client should remove the token from storage
-            
+        {           
             await Task.CompletedTask;
             return true;
         }
