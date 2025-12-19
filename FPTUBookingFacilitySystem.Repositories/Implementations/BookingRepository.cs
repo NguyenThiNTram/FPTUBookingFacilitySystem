@@ -52,17 +52,18 @@ namespace FPTUBookingFacilitySystem.Repositories.Implementations
                 .ToListAsync();
         }
 
-        public async Task<bool> IsRoomAvailableForDateAndTimeSlotAsync(int roomId, DateOnly bookingDate, int timeSlotId)
+        public async Task<bool> IsRoomAvailableForDateAndTimeSlotAsync( int roomId, DateOnly bookingDate, int timeSlotId)
         {
-            // Check if there's any existing booking for this room, date, and time slot with status not cancelled
-            var hasConflict = await _context.Bookings
-                .AnyAsync(b => b.RoomId == roomId 
-                    && b.BookingDate == bookingDate 
-                    && b.TimeSlotId == timeSlotId
-                    && b.BookingStatus.ToLower() != "cancelled");
+            var hasBlockingBooking = await _context.Bookings.AnyAsync(b =>
+                b.RoomId == roomId
+                && b.BookingDate == bookingDate
+                && b.TimeSlotId == timeSlotId
+                && (b.BookingStatus == "pending" || b.BookingStatus == "approved")
+            );
 
-            return !hasConflict;
+            return !hasBlockingBooking;
         }
+
 
         public async Task<bool> UpdateBookingStatusAsync(int bookingId, string newStatus)
         {

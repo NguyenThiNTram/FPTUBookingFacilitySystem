@@ -31,7 +31,7 @@ namespace FPTUBookingFacilitySystem.Services.Implementations
 
         public async Task<BookingResponse?> CreateBookingAsync( CreateBookingRequest request, int accountId)
         {
-            // ===== 1. Validate account & role =====
+            // Validate account & role
             var account = await _accountRepository.GetAccountByIdAsync(accountId)
                 ?? throw new ArgumentException("Account not found.");
 
@@ -44,7 +44,7 @@ namespace FPTUBookingFacilitySystem.Services.Implementations
                 .GetUserProfileByAccountIdAsync(accountId)
                 ?? throw new ArgumentException("User profile not found.");
 
-            // ===== 2. Validate room & timeslot =====
+            // Validate room & timeslot
             var room = await _roomRepository.GetRoomByIdAsync(request.RoomId)
                 ?? throw new ArgumentException("Room not found.");
 
@@ -57,7 +57,28 @@ namespace FPTUBookingFacilitySystem.Services.Implementations
 
             var bookingDate = DateOnly.FromDateTime(request.BookingDate);
 
-            // ===== 3. Tạo Booking trước (status = pending) =====
+            // Check room available
+            if (!room.RoomStatus.Equals("available", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Room is not available.");
+
+            // Check double booking BEFORE create
+            var isAvailable = await _bookingRepository.IsRoomAvailableForDateAndTimeSlotAsync(
+                    room.RoomId, bookingDate, timeSlot.Id);
+
+            if (!isAvailable)
+            {
+                await _bookingRepository.CreateConflictLogWithoutBookingAsync(
+                    room.RoomId,
+                    timeSlot.Id,
+                    "double_booking",
+                    $"Room {room.RoomName} already booked on {bookingDate} ({timeSlot.Name})"
+                );
+
+                throw new InvalidOperationException(
+                    $"Room {room.RoomName} already booked for this time slot.");
+            }
+
+            // Create booking ONLY if valid
             var booking = new Booking
             {
                 UserId = user.UserId,
@@ -71,35 +92,7 @@ namespace FPTUBookingFacilitySystem.Services.Implementations
 
             booking = await _bookingRepository.CreateBookingAsync(booking);
 
-            // ===== 4. Check room unavailable =====
-            if (!room.RoomStatus.Equals("available", StringComparison.OrdinalIgnoreCase))
-            {
-                await HandleConflictAsync(
-                    booking,
-                    "room_unavailable",
-                    $"Room {room.RoomName} is {room.RoomStatus}");
-
-                throw new InvalidOperationException(
-                    $"Room {room.RoomName} is not available.");
-            }
-
-            // ===== 5. Check double booking =====
-            var isAvailable =
-                await _bookingRepository.IsRoomAvailableForDateAndTimeSlotAsync(
-                    room.RoomId, bookingDate, timeSlot.Id);
-
-            if (!isAvailable)
-            {
-                await HandleConflictAsync(
-                    booking,
-                    "double_booking",
-                    $"Room {room.RoomName} already booked on {bookingDate} ({timeSlot.Name})");
-
-                throw new InvalidOperationException(
-                    $"Room {room.RoomName} already booked for this time slot.");
-            }
-
-            // ===== 6. Create initial booking history =====
+            // Create initial booking history
             await _bookingRepository.CreateBookingHistoryAsync(new BookingHistory
             {
                 BookingId = booking.BookingId,
